@@ -1,12 +1,12 @@
 {
   "files": {
-    "main.js": "/henderson-farms/static/js/main.88e0cad3.js",
-    "static/media/almond_farm.png": "/henderson-farms/static/media/almond_farm.e4e54710ead4ecc80a62.png",
-    "static/media/tree_bg.png": "/henderson-farms/static/media/tree_bg.46d404662bc7baca6330.png",
-    "index.html": "/henderson-farms/index.html",
-    "main.88e0cad3.js.map": "/henderson-farms/static/js/main.88e0cad3.js.map"
+    "main.js": "/henderson/static/js/main.70bfa663.js",
+    "static/media/almond_farm.png": "/henderson/static/media/almond_farm.e4e54710ead4ecc80a62.png",
+    "static/media/tree_bg.png": "/henderson/static/media/tree_bg.46d404662bc7baca6330.png",
+    "index.html": "/henderson/index.html",
+    "main.70bfa663.js.map": "/henderson/static/js/main.70bfa663.js.map"
   },
   "entrypoints": [
-    "static/js/main.88e0cad3.js"
+    "static/js/main.70bfa663.js"
   ]
 }
