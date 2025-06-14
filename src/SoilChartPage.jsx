@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import Papa from 'papaparse';
@@ -7,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 function SoilChartPage() {
   const [data, setData] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [filters, setFilters] = useState({ element: '', sampleDate: [], field: '' });
+  const [filters, setFilters] = useState({ element: [], sampleDate: [], field: [] });
   const [hiddenTraces, setHiddenTraces] = useState({});
   const navigate = useNavigate();
 
@@ -21,7 +22,7 @@ function SoilChartPage() {
   };
 
   useEffect(() => {
-    Papa.parse(`${process.env.PUBLIC_URL}/soil_data.csv`, {
+    apa.parse(`${process.env.PUBLIC_URL}/soil_data.csv`, {
       download: true,
       header: true,
       dynamicTyping: true,
@@ -35,11 +36,11 @@ function SoilChartPage() {
   }, []);
 
   useEffect(() => {
-    const filteredData = data.filter(row => {
-      return (!filters.element || row.Element === filters.element)
-        && (!filters.field || row.Field === filters.field)
-        && (filters.sampleDate.length === 0 || filters.sampleDate.includes(row.sampleDate));
-    });
+    const filteredData = data.filter(row =>
+      (filters.element.length === 0 || filters.element.includes(row.Element)) &&
+      (filters.field.length === 0 || filters.field.includes(row.Field)) &&
+      (filters.sampleDate.length === 0 || filters.sampleDate.includes(row.sampleDate))
+    );
     setFiltered(filteredData);
   }, [filters, data]);
 
@@ -59,19 +60,23 @@ function SoilChartPage() {
 
   const groupedByDate = {};
   filtered.forEach(d => {
-    const key = `${d.Element}||${d.Field}||${d.sampleDate}`;
+    const key = d.sampleDate;
     if (!groupedByDate[key]) {
-      groupedByDate[key] = { count: 0, sumValue: 0, sumPerAcre: 0, ...d };
+      groupedByDate[key] = { count: 0, sumValue: 0, sumPerAcre: 0, sumHigh: 0, sumLow: 0 };
     }
     groupedByDate[key].count += 1;
     groupedByDate[key].sumValue += +d.Value;
     groupedByDate[key].sumPerAcre += +d.ValuePerAcre;
+    groupedByDate[key].sumHigh += +d['Average of High'] || 0;
+    groupedByDate[key].sumLow += +d['Average of Low'] || 0;
   });
 
-  const averagedData = Object.values(groupedByDate).map(d => ({
-    ...d,
-    Value: d.sumValue / d.count,
-    ValuePerAcre: d.sumPerAcre / d.count
+  const averagedData = Object.entries(groupedByDate).map(([date, group]) => ({
+    sampleDate: date,
+    Value: group.sumValue / group.count,
+    ValuePerAcre: group.sumPerAcre / group.count,
+    AvgHigh: group.sumHigh / group.count,
+    AvgLow: group.sumLow / group.count
   }));
 
   const sortedData = averagedData.sort((a, b) => a.sampleDate.localeCompare(b.sampleDate));
@@ -80,13 +85,16 @@ function SoilChartPage() {
   const showThresholds = !hiddenTraces['Original Value'];
   const shapes = [];
   const annotations = [];
+
   if (showThresholds && sortedData.length > 0) {
-    const high = +sortedData[0]['Average of High'];
-    const low = +sortedData[0]['Average of Low'];
-    shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: high, y1: high, line: { color: 'hotpink', width: 2 } });
-    shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: low, y1: low, line: { color: 'forestgreen', width: 2 } });
-    annotations.push({ xref: 'paper', yref: 'y', x: 1, y: high, text: String(high), showarrow: false, font: { color: 'hotpink', size: 12 }, yshift: -20, xanchor: 'left', align: 'right' });
-    annotations.push({ xref: 'paper', yref: 'y', x: 1, y: low, text: String(low), showarrow: false, font: { color: 'forestgreen', size: 12 }, yshift: -20, xanchor: 'left', align: 'right' });
+    const avgHigh = sortedData.reduce((sum, d) => sum + d.AvgHigh, 0) / sortedData.length;
+    const avgLow = sortedData.reduce((sum, d) => sum + d.AvgLow, 0) / sortedData.length;
+
+    shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: avgHigh, y1: avgHigh, line: { color: 'hotpink', width: 2 } });
+    shapes.push({ type: 'line', xref: 'paper', x0: 0, x1: 1, y0: avgLow, y1: avgLow, line: { color: 'forestgreen', width: 2 } });
+
+    annotations.push({ xref: 'paper', yref: 'y', x: 1, y: avgHigh, text: `Avg High: ${avgHigh.toFixed(2)}`, showarrow: false, font: { color: 'hotpink', size: 12 }, yshift: -20, xanchor: 'left', align: 'right' });
+    annotations.push({ xref: 'paper', yref: 'y', x: 1, y: avgLow, text: `Avg Low: ${avgLow.toFixed(2)}`, showarrow: false, font: { color: 'forestgreen', size: 12 }, yshift: -20, xanchor: 'left', align: 'right' });
   }
 
   return (
@@ -109,27 +117,18 @@ function SoilChartPage() {
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <label style={{ fontWeight: 'bold', marginBottom: '4px', color: 'black' }}>Element</label>
-            <select value={filters.element} onChange={e => setFilters({ ...filters, element: e.target.value })} style={{ width: '200px' }}>
-              <option value="">All element</option>
-              {unique('Element').map(v => <option key={v} value={v}>{elementFullNames[v] || v}</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <label style={{ fontWeight: 'bold', marginBottom: '4px', color: 'black' }}>Field</label>
-            <select value={filters.field} onChange={e => setFilters({ ...filters, field: e.target.value })} style={{ width: '200px' }}>
-              <option value="">All field</option>
-              {unique('Field').map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <label style={{ fontWeight: 'bold', marginBottom: '4px', color: 'black' }}>Date</label>
-            <select multiple value={filters.sampleDate} onChange={e => handleMultiSelect(e, 'sampleDate')} style={{ width: '150px' }}>
-              <option value="">All</option>
-              {unique('sampleDate').map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
-          </div>
+          {['element', 'field', 'sampleDate'].map((key) => (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <label style={{ fontWeight: 'bold', marginBottom: '4px', color: 'black' }}>
+                {key === 'sampleDate' ? 'Date' : key.charAt(0).toUpperCase() + key.slice(1)}
+              </label>
+              <select multiple value={filters[key]} onChange={e => handleMultiSelect(e, key)} style={{ width: '200px' }}>
+                <option value="">All</option>
+                {unique(key === 'element' ? 'Element' : key === 'field' ? 'Field' : 'sampleDate')
+                  .map(v => <option key={v} value={v}>{key === 'element' ? (elementFullNames[v] || v) : v}</option>)}
+              </select>
+            </div>
+          ))}
         </div>
       </div>
 
