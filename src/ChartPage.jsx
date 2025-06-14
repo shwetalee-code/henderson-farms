@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Plot from 'react-plotly.js';
 import Papa from 'papaparse';
@@ -8,7 +9,7 @@ function ChartPage() {
   const [data, setData] = useState([]);
   const [thresholds, setThresholds] = useState([]);
   const [filtered, setFiltered] = useState([]);
-  const [filters, setFilters] = useState({ element: '', year: [], month: [], field: '' });
+  const [filters, setFilters] = useState({ element: [], year: [], month: [], field: [] });
   const [hiddenTraces, setHiddenTraces] = useState({});
   const navigate = useNavigate();
 
@@ -27,7 +28,7 @@ function ChartPage() {
       }
     });
 
-    Papa.parse(`${process.env.PUBLIC_URL}/thresholds.csv`, {
+    Papa.parse('/thresholds.csv', {
       download: true,
       header: true,
       complete: (result) => {
@@ -38,10 +39,10 @@ function ChartPage() {
 
   useEffect(() => {
     const filteredData = data.filter(row => {
-      return (!filters.element || row.element === filters.element)
-        && (filters.year.length === 0 || filters.year.includes(String(row.year)))
-        && (filters.month.length === 0 || filters.month.includes(String(row.month)))
-        && (!filters.field || row.field === filters.field);
+      return (filters.element.length === 0 || filters.element.includes(row.element)) &&
+             (filters.year.length === 0 || filters.year.includes(String(row.year))) &&
+             (filters.month.length === 0 || filters.month.includes(String(row.month))) &&
+             (filters.field.length === 0 || filters.field.includes(row.field));
     });
     setFiltered(filteredData);
   }, [filters, data]);
@@ -54,22 +55,43 @@ function ChartPage() {
       : values.sort((a, b) => a.localeCompare(b));
   };
 
-  const sortedData = [...filtered].sort((a, b) => {
-    const aKey = `${a.year}-${String(a.month).padStart(2, '0')}`;
-    const bKey = `${b.year}-${String(b.month).padStart(2, '0')}`;
-    return aKey.localeCompare(bKey);
+  const grouped = {};
+  filtered.forEach(d => {
+    const key = `${d.year}-${String(d.month).padStart(2, '0')}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(d);
   });
 
-  const xLabels = sortedData.map(d => `${d.year}-${String(d.month).padStart(2, '0')}`);
-  const currentThreshold = thresholds.find(t => t['Element_Full'] === filters.element);
+  const sortedData = Object.entries(grouped)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, group]) => {
+      const avgValue = group.reduce((sum, d) => sum + +d.value, 0) / group.length;
+      const avgNorm = group.reduce((sum, d) => sum + +d.normalizedValue, 0) / group.length;
+      return {
+        key,
+        avgValue,
+        avgNorm
+      };
+    });
 
-  const high = currentThreshold && !isNaN(+currentThreshold['High Threshold Value'])
-    ? +currentThreshold['High Threshold Value']
-    : null;
+  const xLabels = sortedData.map(d => d.key);
 
-  const low = currentThreshold && !isNaN(+currentThreshold['Low Threshold Value'])
-    ? +currentThreshold['Low Threshold Value']
-    : null;
+  // Compute average threshold values across selected elements
+  let high = null;
+  let low = null;
+
+  if (filters.element.length > 0) {
+    const selectedThresholds = thresholds.filter(t => filters.element.includes(t['Element_Full']));
+    const highVals = selectedThresholds.map(t => +t['High Threshold Value']).filter(v => !isNaN(v));
+    const lowVals = selectedThresholds.map(t => +t['Low Threshold Value']).filter(v => !isNaN(v));
+
+    if (highVals.length > 0) {
+      high = highVals.reduce((a, b) => a + b, 0) / highVals.length;
+    }
+    if (lowVals.length > 0) {
+      low = lowVals.reduce((a, b) => a + b, 0) / lowVals.length;
+    }
+  }
 
   const shapes = [];
   const showThresholds = !hiddenTraces['Original Value'];
@@ -97,13 +119,7 @@ function ChartPage() {
   }
 
   const handleMultiSelect = (e, key) => {
-    const options = Array.from(e.target.options);
-    let selected;
-    if (e.target.value === '') {
-      selected = options.filter(opt => opt.value !== '').map(opt => opt.value);
-    } else {
-      selected = Array.from(e.target.selectedOptions, option => option.value);
-    }
+    const selected = Array.from(e.target.selectedOptions, option => option.value);
     setFilters(prev => ({ ...prev, [key]: selected }));
   };
 
@@ -164,17 +180,10 @@ function ChartPage() {
               <label style={{ fontWeight: 'bold', marginBottom: '4px', color: 'black' }}>
                 {key.charAt(0).toUpperCase() + key.slice(1)}
               </label>
-              {key === 'year' || key === 'month' ? (
-                <select multiple value={filters[key]} onChange={e => handleMultiSelect(e, key)} style={{ width: '150px' }}>
-                  <option value="">All </option>
-                  {unique(key).map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-              ) : (
-                <select value={filters[key]} onChange={e => setFilters({ ...filters, [key]: e.target.value })} style={{ width: '200px' }}>
-                  <option value="">All {key}</option>
-                  {unique(key).map(v => <option key={v} value={v}>{v}</option>)}
-                </select>
-              )}
+              <select multiple value={filters[key]} onChange={e => handleMultiSelect(e, key)} style={{ width: '200px' }}>
+                <option value="">All</option>
+                {unique(key).map(v => <option key={v} value={v}>{v}</option>)}
+              </select>
             </div>
           ))}
         </div>
@@ -184,24 +193,24 @@ function ChartPage() {
         data={[
           {
             x: xLabels,
-            y: sortedData.map(d => +d.value),
+            y: sortedData.map(d => d.avgValue),
             type: 'bar',
             name: 'Original Value',
             visible: hiddenTraces['Original Value'] ? 'legendonly' : true,
             marker: { color: '#86CFFF' },
-            text: sortedData.map(d => (+d.value).toFixed(3)),
+            text: sortedData.map(d => d.avgValue.toFixed(3)),
             textposition: 'outside',
             textfont: { size: 12, color: 'black' },
             hovertemplate: '%{x}:<br> %{y:.3f}<extra></extra>'
           },
           {
             x: xLabels,
-            y: sortedData.map(d => +d.normalizedValue),
+            y: sortedData.map(d => d.avgNorm),
             type: 'bar',
             name: 'Per Acre Value',
             visible: hiddenTraces['Per Acre Value'] ? 'legendonly' : true,
             marker: { color: '#CAC691' },
-            text: sortedData.map(d => (+d.normalizedValue).toFixed(3)),
+            text: sortedData.map(d => d.avgNorm.toFixed(3)),
             textposition: 'outside',
             textfont: { size: 12, color: 'black' },
             hovertemplate: '%{x}<br>Per Acre Value: %{y:.3f}<extra></extra>'
@@ -217,24 +226,24 @@ function ChartPage() {
           legend: { x: 1.1, y: 1 },
           shapes,
           annotations: [
-            high != null && !hiddenTraces['Original Value'] ? {
+            high != null && showThresholds ? {
               xref: 'paper',
               yref: 'y',
               x: 1,
               y: high,
-              text: String(high),
+              text: `Avg High: ${high.toFixed(2)}`,
               showarrow: false,
               font: { color: 'hotpink', size: 12 },
               yshift: -20,
               xanchor: 'left',
               align: 'right'
             } : null,
-            low != null && !hiddenTraces['Original Value'] ? {
+            low != null && showThresholds ? {
               xref: 'paper',
               yref: 'y',
               x: 1,
               y: low,
-              text: String(low),
+              text: `Avg Low: ${low.toFixed(2)}`,
               showarrow: false,
               font: { color: 'forestgreen', size: 12 },
               yshift: -20,
