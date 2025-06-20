@@ -22,7 +22,7 @@ function SoilChartPage() {
   };
 
   useEffect(() => {
-    apa.parse(`${process.env.PUBLIC_URL}/soil_data.csv`, {
+    pa.parse(`${process.env.PUBLIC_URL}/soil_data.csv`, {
       download: true,
       header: true,
       dynamicTyping: true,
