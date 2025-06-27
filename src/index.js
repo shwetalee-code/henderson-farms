@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import LandingPage from './LandingPage';
-import ChartPage from './ChartPage';
+import ChartPage from './LeafChartPage';
 import SoilChartPage from './SoilChartPage';
 import CropYieldChartPage from './CropYieldChartPage';
 import PnLChartPage from './PnLChartPage';

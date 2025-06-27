@@ -14,7 +14,7 @@ function ChartPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    Papa.parse(`${process.env.PUBLIC_URL}/chart_data.csv`, {
+    Papa.parse(`${process.env.PUBLIC_URL}/leaf_data.csv`, {
       download: true,
       header: true,
       complete: (result) => {

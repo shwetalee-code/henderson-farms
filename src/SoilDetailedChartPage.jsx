@@ -14,7 +14,7 @@ function SoilDetailedChartPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    Papa.parse(`${process.env.PUBLIC_URL}/lab-soil data.csv`, {
+    Papa.parse(`${process.env.PUBLIC_URL}/detailed_soil_data.csv`, {
       download: true,
       header: true,
       complete: (results) => {
